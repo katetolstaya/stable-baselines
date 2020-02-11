@@ -276,8 +276,9 @@ class BaseRLModel(ABC):
 
         assert discrete_actions or continuous_actions or multidiscrete_actions, 'Only Discrete, MultiDiscrete, or Box action spaces are supported'
         if multidiscrete_actions:
-            assert np.all(ac_space.nvec == ac_space.nvec[0]), "Ragged MultiDiscrete action spaces not allowed"
-            n_actions = ac_space.nvec[0]
+            assert np.all(self.action_space.nvec == self.action_space.nvec[0]), "Ragged MultiDiscrete action spaces not allowed"
+            n_actions = self.action_space.nvec[0]
+            n_agents = len(self.action_space.nvec)
 
         # Validate the model every 10% of the total number of iteration
         if val_interval is None:
@@ -305,15 +306,14 @@ class BaseRLModel(ABC):
                     loss = tf.reduce_mean(loss)
                 else:  # multi_discrete 
                     obs_ph, actions_ph, actions_logits_ph = self._get_pretrain_placeholders()
-                    # n_actions = tf.cast(tf.reduce_sum(ac_space.nvec), tf.int32)
-
-                    # Flatten the batch and multi-discrete dimensions so that one_hot() and loss can be used
-                    actions_ph = tf.reshape(actions_ph, (-1, 1))
-                    actions_logits_ph = tf.reshape(actions_logits_ph, (-1, n_actions))
+                    actions_ph = tf.reshape(actions_ph, (-1, n_agents))
                     one_hot_actions = tf.one_hot(actions_ph, n_actions)
+
+                    actions_logits_ph = tf.reshape(actions_logits_ph, (-1,  n_agents, n_actions))
                     loss = tf.nn.softmax_cross_entropy_with_logits_v2(
                         logits=actions_logits_ph,
-                        labels=tf.stop_gradient(one_hot_actions)
+                        labels=tf.stop_gradient(one_hot_actions), 
+                        axis=2
                     )
                     loss = tf.reduce_mean(loss)
 
